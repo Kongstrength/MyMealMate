@@ -2,23 +2,113 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { fetchDashboard, fetchMocSeafoodPrices, getStoredAccessToken } from "../../lib/api";
+import { ProfileEditor, type ProfileTab } from "../profile/profile-editor";
 
-const meals = [
-  { type: "มื้อเช้า", name: "โจ๊กหมูใส่ไข่", emoji: "🍲", calories: 385, cost: 45, tone: "amber" },
-  { type: "มื้อกลางวัน", name: "ข้าวกะเพราไก่", emoji: "🍛", calories: 520, cost: 55, tone: "blue" },
-  { type: "มื้อเย็น", name: "สลัดอกไก่อะโวคาโด", emoji: "🥗", calories: 420, cost: 72, tone: "green" },
-];
+type DashboardData = {
+  date: string;
+  user: {
+    full_name: string;
+    username: string;
+    budget_daily: number;
+    budget_monthly: number;
+    daily_target_calories: number;
+    liked_foods: string[] | null;
+    health_goals_list: string[] | null;
+  };
+  mealPlan: {
+    totalCalories: number;
+    totalCost: number;
+    items: Array<{
+      id: string;
+      mealType: string;
+      calories: number;
+      cost: number;
+      recipe: { name: string; emoji: string | null };
+    }>;
+  } | null;
+};
+
+type MarketPriceData = {
+  items: Array<{
+    id: string;
+    name: string;
+    average_price: number;
+    unit: string;
+  }>;
+};
+
+const MEAL_TYPE_LABEL: Record<string, string> = {
+  BREAKFAST: "มื้อเช้า",
+  LUNCH: "มื้อกลางวัน",
+  DINNER: "มื้อเย็น",
+  SNACK: "ของว่าง",
+};
 
 const quickActions = [
-  { icon: "＋", label: "วางแผนมื้ออาหาร", detail: "จัดเมนูทั้งสัปดาห์" },
-  { icon: "⌕", label: "ค้นหาเมนู", detail: "จากวัตถุดิบที่มี" },
-  { icon: "฿", label: "ตั้งงบประมาณ", detail: "คุมค่าใช้จ่ายง่ายขึ้น" },
+  { icon: "✨", label: "AI แนะนำเมนู", detail: "ให้ AI จัดเมนูในงบ", href: "/ai-recommend" },
+  { icon: "⌕", label: "ค้นหาเมนู", detail: "จากวัตถุดิบที่มี", href: "#menu-search" },
+  { icon: "▣", label: "วางแผนรายสัปดาห์", detail: "จัดมื้ออาหารล่วงหน้า", href: "/meal-planner" },
 ];
 
 export default function DashboardPage() {
   const router = useRouter();
   const [selectedMeal, setSelectedMeal] = useState<string | null>(null);
+  const [dashboard, setDashboard] = useState<DashboardData | null>(null);
+  const [error, setError] = useState("");
+  const [marketPrices, setMarketPrices] = useState<MarketPriceData | null>(null);
+  const [marketError, setMarketError] = useState("");
+  const [profileModalTab, setProfileModalTab] = useState<ProfileTab | null>(null);
+  const [dashboardRefresh, setDashboardRefresh] = useState(0);
+  const [isAuthorizing, setIsAuthorizing] = useState(true);
+
+  const today = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Bangkok",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(new Date());
+
+  useEffect(() => {
+    if (!getStoredAccessToken()) {
+      router.replace("/login");
+      return;
+    }
+    fetchDashboard(today)
+      .then((data) => {
+        setDashboard(data);
+        setIsAuthorizing(false);
+      })
+      .catch((loadError: unknown) => {
+        if (loadError instanceof Error && loadError.message === "AUTH_REQUIRED") {
+          router.replace("/login");
+          return;
+        }
+        setError(loadError instanceof Error ? loadError.message : "โหลดข้อมูลไม่สำเร็จ");
+        setIsAuthorizing(false);
+      });
+
+    fetchMocSeafoodPrices(today)
+      .then(setMarketPrices)
+      .catch((loadError: unknown) => {
+        setMarketError(loadError instanceof Error ? loadError.message : "โหลดราคาสินค้าไม่สำเร็จ");
+      });
+  }, [router, today, dashboardRefresh]);
+
+  useEffect(() => {
+    if (!profileModalTab) return;
+    const previousOverflow = document.body.style.overflow;
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setProfileModalTab(null);
+    };
+    document.body.style.overflow = "hidden";
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [profileModalTab]);
 
   function logout() {
     localStorage.removeItem("accessToken");
@@ -28,41 +118,290 @@ export default function DashboardPage() {
     router.replace("/login");
   }
 
+  // Derived values
+  const budgetDaily = dashboard?.user.budget_daily ?? 0;
+  const totalCost = dashboard?.mealPlan?.totalCost ?? 0;
+  const totalCalories = dashboard?.mealPlan?.totalCalories ?? 0;
+  const caloriesTarget = dashboard?.user.daily_target_calories ?? 0;
+  const budgetUsedPct = budgetDaily > 0 ? Math.min(100, Math.round((totalCost / budgetDaily) * 100)) : 0;
+  const caloriesPct = caloriesTarget > 0 ? Math.min(100, Math.round((totalCalories / caloriesTarget) * 100)) : 0;
+  const budgetLeft = Math.max(0, budgetDaily - totalCost);
+  const likedFoods: string[] = dashboard?.user.liked_foods ?? [];
+  const healthGoals: string[] = dashboard?.user.health_goals_list ?? [];
+
+  if (isAuthorizing) return <main className="home-page"><div className="profile-loading">กำลังตรวจสอบการเข้าสู่ระบบ...</div></main>;
+
   return (
     <main className="home-page">
       <header className="home-nav">
         <Link className="home-brand" href="/dashboard"><span className="home-brand-mark">🍽</span><strong>กินดี</strong></Link>
         <nav className="home-links" aria-label="เมนูหลัก">
-          <Link className="active" href="/dashboard">หน้าหลัก</Link><a href="#meal-plan">วางแผนมื้ออาหาร</a><a href="#menu-search">ค้นหาเมนู</a><a href="#report">รายงาน</a><a href="#market">ตลาดใกล้บ้าน</a>
+          <Link className="active" href="/dashboard">หน้าหลัก</Link>
+          <Link href="/ai-recommend">AI แนะนำเมนู</Link>
+          <Link href="/meal-planner">วางแผนมื้ออาหาร</Link>
+          <a href="#menu-search">ค้นหาเมนู</a>
+          <Link href="/reports">รายงาน</Link>
+          <Link href="/nearby-markets">ตลาดใกล้ฉัน</Link>
         </nav>
-        <div className="home-user"><div className="home-avatar">ผ</div><div><strong>ผู้ใช้งาน</strong><span>พร้อมกินดีขึ้น</span></div><button className="icon-button" type="button" aria-label="ออกจากระบบ" onClick={logout}>↗</button></div>
+        <div className="home-user">
+          <button className="home-user-profile" type="button" onClick={() => setProfileModalTab("personal")} aria-label="แก้ไขโปรไฟล์">
+            <div className="home-avatar">{dashboard?.user.full_name?.charAt(0) ?? "ผ"}</div>
+            <div className="home-user-copy"><strong>{dashboard?.user.full_name ?? "กำลังโหลด..."}</strong><span>@{dashboard?.user.username ?? ""}</span></div>
+            <span className="home-edit-icon" aria-hidden="true">✎</span>
+          </button>
+          <button className="icon-button" type="button" aria-label="ออกจากระบบ" onClick={logout}>↗</button>
+        </div>
       </header>
 
       <div className="home-wrap">
+        {/* Sidebar */}
         <aside className="home-sidebar">
           <section className="profile-panel">
-            <div className="profile-avatar">ผ</div><h2>สวัสดี, ผู้ใช้งาน</h2><p>@กินดีทุกวัน</p><div className="profile-divider" />
-            <div className="budget-mini"><div className="section-label"><span>งบประมาณประจำเดือน</span><span>฿</span></div><div className="budget-numbers"><strong>฿4,500</strong><span>จาก ฿6,000</span></div><div className="progress-track"><span style={{ width: "75%" }} /></div><small>เหลือ ฿1,500 · อีก 18 วัน</small></div>
-            <div className="nutrition-mini"><div className="section-label"><span>เป้าหมายวันนี้</span><span>ดูทั้งหมด →</span></div><div className="nutrition-grid"><div><strong>1,325</strong><span>แคลอรี่</span><i className="bar calories" /></div><div><strong>62g</strong><span>โปรตีน</span><i className="bar protein" /></div><div><strong>145g</strong><span>คาร์บ</span><i className="bar carbs" /></div><div><strong>38g</strong><span>ไขมัน</span><i className="bar fat" /></div></div></div>
+            <div className="profile-avatar">{dashboard?.user.full_name?.charAt(0) ?? "ผ"}</div>
+            <h2>สวัสดี, {dashboard?.user.full_name ?? "ผู้ใช้งาน"}</h2>
+            <p>@{dashboard?.user.username ?? ""}</p>
+            <div className="profile-divider" />
+
+            {/* Budget */}
+            <div className="budget-mini">
+              <div className="section-label">
+                <span>งบประมาณวันนี้</span>
+                <span>฿</span>
+              </div>
+              <div className="budget-numbers">
+                <strong>฿{budgetLeft.toLocaleString()}</strong>
+                <span>คงเหลือ / ฿{budgetDaily.toLocaleString()}</span>
+              </div>
+              <div className="progress-track">
+                <span style={{ width: `${budgetUsedPct}%` }} />
+              </div>
+              <small>
+                {budgetDaily > 0
+                  ? `ใช้ไปแล้ว ฿${totalCost.toLocaleString()} (${budgetUsedPct}%)`
+                  : "ตั้งงบประมาณในหน้า Profile"}
+              </small>
+            </div>
+
+            {/* Calories */}
+            <div className="nutrition-mini">
+              <div className="section-label">
+                <span>แคลอรี่วันนี้</span>
+                <span>{caloriesPct}%</span>
+              </div>
+              <div className="nutrition-grid">
+                <div>
+                  <strong>{totalCalories > 0 ? totalCalories.toLocaleString() : "-"}</strong>
+                  <span>ทานแล้ว</span>
+                  <i className="bar calories" style={{ width: `${caloriesPct}%` }} />
+                </div>
+                <div>
+                  <strong>{caloriesTarget > 0 ? caloriesTarget.toLocaleString() : "-"}</strong>
+                  <span>เป้าหมาย</span>
+                  <i className="bar calories" style={{ width: "100%", background: "#e4e4e4" }} />
+                </div>
+              </div>
+            </div>
           </section>
-          <section className="preference-panel"><div className="section-label"><span>ความชอบของคุณ</span><Link href="/onboarding">แก้ไข</Link></div><div className="tag-list"><span>อาหารไทย</span><span>ทำง่าย</span><span>โปรตีนสูง</span><span className="avoid">ไม่ทานถั่ว</span></div></section>
+
+          {/* Preferences from API */}
+          <section className="preference-panel">
+            <div className="section-label">
+              <span>ความชอบของคุณ</span>
+              <button type="button" onClick={() => setProfileModalTab("preferences")}>แก้ไข</button>
+            </div>
+            <div className="tag-list">
+              {likedFoods.length > 0
+                ? likedFoods.map((food) => <span key={food}>{food}</span>)
+                : <span style={{ color: "#a0afa7", fontSize: 11 }}>ยังไม่ได้ตั้งค่า</span>}
+            </div>
+          </section>
         </aside>
 
+        {/* Main Content */}
         <section className="home-content">
-          <div className="welcome-row"><div><p className="date-label">วันจันทร์ที่ 7 กันยายน 2569</p><h1>มื้ออาหารของคุณวันนี้</h1><p className="muted">เริ่มต้นวันดีๆ ด้วยเมนูที่เหมาะกับคุณ</p></div><button className="outline-button" type="button">วันนี้ ▾</button></div>
-          <section className="today-summary"><div><span className="summary-kicker">งบคงเหลือวันนี้</span><strong>฿128</strong><small>จากงบ ฿200 · ใช้ไปแล้ว ฿72</small></div><div className="summary-ring"><span>64%</span><small>ใช้ไปแล้ว</small></div><div className="summary-message"><span>เยี่ยมมาก!</span><p>วันนี้คุณประหยัดงบได้ดี<br />เหลือไว้สำหรับของว่างมื้อเย็น</p></div></section>
-
-          <div className="home-grid">
-            <section className="content-card meal-card" id="meal-plan"><div className="card-heading"><div><h2>เมนูวันนี้</h2><p>ครบ 3 มื้อ · 1,325 kcal</p></div><button className="text-button" type="button">＋ เพิ่มเมนู</button></div><div className="meal-list">{meals.map((meal) => <article className={`meal-row ${meal.tone}`} key={meal.type}><div className="meal-icon">{meal.emoji}</div><div className="meal-info"><span>{meal.type}</span><strong>{meal.name}</strong><small>{meal.calories} kcal <b>·</b> ฿{meal.cost}</small></div><button className="change-button" type="button" onClick={() => setSelectedMeal(meal.type)}>{selectedMeal === meal.type ? "เลือกแล้ว" : "เปลี่ยน"}</button></article>)}</div><button className="full-link" type="button">ดูแผนมื้ออาหารทั้งหมด <span>→</span></button></section>
-            <section className="content-card checklist-card"><div className="card-heading"><div><h2>เช็กลิสต์วันนี้</h2><p>2 จาก 4 รายการ</p></div><span className="check-count">50%</span></div><div className="checklist"><label><input type="checkbox" defaultChecked /><span>ดื่มน้ำ 2 แก้วตอนเช้า</span></label><label><input type="checkbox" defaultChecked /><span>เตรียมวัตถุดิบมื้อเย็น</span></label><label><input type="checkbox" /><span>ทานผักผลไม้ 5 ชนิด</span></label><label><input type="checkbox" /><span>บันทึกค่าใช้จ่ายวันนี้</span></label></div><button className="full-link" type="button">ดูเช็กลิสต์ทั้งหมด <span>→</span></button></section>
+          <div className="welcome-row">
+            <div>
+              <p className="date-label">{dashboard?.date ?? today}</p>
+              <h1>มื้ออาหารของคุณวันนี้</h1>
+              <p className="muted">เริ่มต้นวันดีๆ ด้วยเมนูที่เหมาะกับคุณ</p>
+            </div>
+            <button className="outline-button" type="button">วันนี้ ▾</button>
           </div>
 
-          <section className="content-card goal-card" id="report"><div className="card-heading"><div><h2>ความคืบหน้าเป้าหมาย</h2><p>ทำได้ดีมาก เหลืออีกนิดเดียว</p></div><button className="text-button" type="button">จัดการเป้าหมาย</button></div><div className="goal-items"><div className="goal-item"><div className="goal-icon orange">⚖</div><div><strong>ควบคุมน้ำหนัก</strong><span>2.5 จาก 5 กก.</span><div className="progress-track"><span style={{ width: "50%" }} /></div></div><b>50%</b></div><div className="goal-item"><div className="goal-icon teal">🥗</div><div><strong>ทานผักผลไม้</strong><span>3 จาก 5 ชนิด / วัน</span><div className="progress-track"><span style={{ width: "60%" }} /></div></div><b>60%</b></div><div className="goal-item"><div className="goal-icon blue">💧</div><div><strong>ดื่มน้ำให้เพียงพอ</strong><span>1.5 จาก 2 ลิตร / วัน</span><div className="progress-track"><span style={{ width: "75%" }} /></div></div><b>75%</b></div></div></section>
-          <div className="quick-actions" id="menu-search">{quickActions.map((action) => <button type="button" key={action.label}><span>{action.icon}</span><div><strong>{action.label}</strong><small>{action.detail}</small></div><b>→</b></button>)}</div>
-          <section className="market-strip" id="market"><div className="market-copy"><span className="market-pin">⌖</span><div><h2>ตลาดใกล้บ้านคุณ</h2><p>วัตถุดิบสดใหม่ อยู่ห่างจากคุณเพียง 1.2 กม.</p></div></div><button className="outline-button" type="button">ดูแผนที่ →</button></section>
-          <footer className="home-footer"><span>กินดี · วางแผนอาหารให้พอดีกับคุณ</span><span>© 2569 กินดี</span></footer>
+          {error && <p className="error-note" role="alert">{error}</p>}
+
+          {/* Today Summary — now fully dynamic */}
+          <section className="today-summary">
+            <div>
+              <span className="summary-kicker">งบคงเหลือวันนี้</span>
+              <strong>
+                {budgetDaily > 0 ? `฿${budgetLeft.toLocaleString()}` : "—"}
+              </strong>
+              <small>
+                {budgetDaily > 0
+                  ? `จากงบ ฿${budgetDaily.toLocaleString()} · ใช้ไปแล้ว ฿${totalCost.toLocaleString()}`
+                  : "ยังไม่ได้ตั้งงบประมาณ"}
+              </small>
+            </div>
+            <div className="summary-ring">
+              <span>{budgetUsedPct}%</span>
+              <small>ใช้ไปแล้ว</small>
+            </div>
+            <div className="summary-message">
+              {budgetDaily === 0 ? (
+                <>
+                  <span>ตั้งงบก่อนนะ!</span>
+                  <p><Link href="/onboarding">ตั้งค่างบประมาณ</Link> เพื่อให้ AI วางแผนได้แม่นขึ้น</p>
+                </>
+              ) : budgetUsedPct < 70 ? (
+                <>
+                  <span>เยี่ยมมาก!</span>
+                  <p>วันนี้คุณประหยัดงบได้ดี<br />เหลือไว้สำหรับของว่างมื้อเย็น</p>
+                </>
+              ) : budgetUsedPct < 100 ? (
+                <>
+                  <span>ใกล้เต็มงบแล้ว!</span>
+                  <p>ใช้งบไปแล้ว {budgetUsedPct}%<br />ระวังอย่าเกินนะ</p>
+                </>
+              ) : (
+                <>
+                  <span>เกินงบแล้ว!</span>
+                  <p>วันนี้ใช้เกินงบ ฿{(totalCost - budgetDaily).toFixed(0)}<br />ลองปรับลดมื้อถัดไปดูนะ</p>
+                </>
+              )}
+            </div>
+          </section>
+
+          <div className="home-grid">
+            {/* Meal Plan Card */}
+            <section className="content-card meal-card" id="meal-plan">
+              <div className="card-heading">
+                <div>
+                  <h2>เมนูวันนี้</h2>
+                  <p>
+                    {dashboard?.mealPlan
+                      ? `${dashboard.mealPlan.items.length} มื้อ · ${dashboard.mealPlan.totalCalories.toLocaleString()} kcal · ฿${dashboard.mealPlan.totalCost.toLocaleString()}`
+                      : "ยังไม่มีแผนอาหาร"}
+                  </p>
+                </div>
+                <Link href="/ai-recommend" className="text-button">✨ AI แนะนำ</Link>
+              </div>
+              <div className="meal-list">
+                {dashboard?.mealPlan?.items.map((meal) => (
+                  <article className="meal-row green" key={meal.id}>
+                    <div className="meal-icon">{meal.recipe.emoji ?? "🍽"}</div>
+                    <div className="meal-info">
+                      <span>{MEAL_TYPE_LABEL[meal.mealType] ?? meal.mealType}</span>
+                      <strong>{meal.recipe.name}</strong>
+                      <small>{meal.calories.toLocaleString()} kcal <b>·</b> ฿{meal.cost}</small>
+                    </div>
+                    <button className="change-button" type="button"
+                      onClick={() => setSelectedMeal(meal.mealType)}>
+                      {selectedMeal === meal.mealType ? "เลือกแล้ว" : "เปลี่ยน"}
+                    </button>
+                  </article>
+                ))}
+                {!dashboard?.mealPlan && (
+                  <div className="dash-empty-state">
+                    <span>🍽</span>
+                    <p>ยังไม่มีเมนูสำหรับวันนี้</p>
+                    <Link href="/ai-recommend" className="primary-btn" style={{ display: "inline-block", padding: "10px 20px", fontSize: 13, width: "auto" }}>
+                      ✨ ให้ AI แนะนำเมนู
+                    </Link>
+                  </div>
+                )}
+              </div>
+              {dashboard?.mealPlan && (
+                <Link className="full-link" href="/meal-planner">ดูแผนมื้ออาหารทั้งหมด <span>→</span></Link>
+              )}
+            </section>
+
+            {/* Health Goals Card — dynamic */}
+            <section className="content-card checklist-card">
+              <div className="card-heading">
+                <div>
+                  <h2>เป้าหมายสุขภาพ</h2>
+                  <p>{healthGoals.length > 0 ? `${healthGoals.length} เป้าหมาย` : "ยังไม่ได้ตั้งค่า"}</p>
+                </div>
+                <button type="button" onClick={() => setProfileModalTab("health")} className="text-button">แก้ไข</button>
+              </div>
+              <div className="checklist">
+                {healthGoals.length > 0
+                  ? healthGoals.map((goal) => (
+                      <label key={goal}>
+                        <input type="checkbox" />
+                        <span>{goal}</span>
+                      </label>
+                    ))
+                  : (
+                    <p className="muted" style={{ marginTop: 12 }}>
+                      <button className="inline-profile-button" type="button" onClick={() => setProfileModalTab("health")}>ตั้งค่าเป้าหมายสุขภาพ</button> เพื่อติดตามความก้าวหน้า
+                    </p>
+                  )}
+              </div>
+            </section>
+          </div>
+
+          {/* Quick Actions — with AI link */}
+          <div className="quick-actions" id="menu-search">
+            {quickActions.map((action) => (
+              <Link href={action.href} key={action.label} style={{ textDecoration: "none" }}>
+                <button type="button">
+                  <span>{action.icon}</span>
+                  <div>
+                    <strong>{action.label}</strong>
+                    <small>{action.detail}</small>
+                  </div>
+                  <b>→</b>
+                </button>
+              </Link>
+            ))}
+          </div>
+
+          {/* Market Prices */}
+          <section className="market-strip" id="market">
+            <div className="market-copy">
+              <span className="market-pin">฿</span>
+              <div>
+                <h2>ราคาสัตว์น้ำวันนี้</h2>
+                <p>ข้อมูลค้าปลีกจากกรมการค้าภายใน กระทรวงพาณิชย์</p>
+              </div>
+            </div>
+            {marketError && <p className="error-note" role="alert">{marketError}</p>}
+            {!marketPrices && !marketError && <p className="muted">กำลังโหลดราคา...</p>}
+            {marketPrices && (
+              <div className="market-price-list">
+                {marketPrices.items.slice(0, 3).map((item) => (
+                  <div className="market-price-item" key={item.id}>
+                    <strong>{item.name}</strong>
+                    <span>฿{item.average_price.toLocaleString()} {item.unit}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            <Link className="outline-button market-map-link" href="/nearby-markets">ดูตลาดใกล้ฉัน →</Link>
+          </section>
+
+          <footer className="home-footer">
+            <span>กินดี · วางแผนอาหารให้พอดีกับคุณ</span>
+            <span>© 2569 กินดี</span>
+          </footer>
         </section>
       </div>
+      {profileModalTab && (
+        <div className="profile-modal-backdrop" role="presentation" onMouseDown={(event) => {
+          if (event.target === event.currentTarget) setProfileModalTab(null);
+        }}>
+          <section className="profile-modal-shell" role="dialog" aria-modal="true" aria-labelledby="profile-editor-title">
+            <ProfileEditor
+              embedded
+              initialTab={profileModalTab}
+              onClose={() => setProfileModalTab(null)}
+              onSaved={() => setDashboardRefresh((current) => current + 1)}
+            />
+          </section>
+        </div>
+      )}
     </main>
   );
 }

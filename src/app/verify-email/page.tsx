@@ -9,8 +9,9 @@ const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5000/api";
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams();
-  const [message, setMessage] = useState("กำลังยืนยันอีเมล...");
-  const [error, setError] = useState("");
+  const token = searchParams.get("token");
+  const [message, setMessage] = useState(token ? "กำลังยืนยันอีเมล..." : "");
+  const [error, setError] = useState(token ? "" : "ลิงก์ยืนยันอีเมลไม่ถูกต้อง");
   const verificationAttempted = useRef(false);
 
   useEffect(() => {
@@ -19,11 +20,7 @@ function VerifyEmailContent() {
     }
 
     verificationAttempted.current = true;
-    const token = searchParams.get("token");
-
     if (!token) {
-      setError("ลิงก์ยืนยันอีเมลไม่ถูกต้อง");
-      setMessage("");
       return;
     }
 
@@ -43,7 +40,7 @@ function VerifyEmailContent() {
             : "ยืนยันอีเมลไม่สำเร็จ",
         );
       });
-  }, [searchParams]);
+  }, [token]);
 
   return (
     <AuthShell

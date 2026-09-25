@@ -43,7 +43,7 @@ function LoginForm() {
       const storage = remember ? localStorage : sessionStorage;
       storage.setItem("accessToken", data.accessToken);
       storage.setItem("userId", data.user.user_id);
-      router.push("/onboarding");
+      router.push(data.user.is_profile_complete ? "/dashboard" : "/onboarding");
     } catch (submissionError) {
       setError(submissionError instanceof Error ? submissionError.message : "เกิดข้อผิดพลาด");
     } finally {
