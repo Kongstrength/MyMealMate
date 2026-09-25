@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useState } from "react";
+import { AppNavbar } from "../../components/app-navbar";
 import { fetchAiRecommendMenu, getStoredAccessToken, saveAiMealPlan } from "../../lib/api";
 
 type Ingredient = {
@@ -119,16 +120,7 @@ export default function AiRecommendPage() {
 
   return (
     <main className="home-page">
-      <header className="home-nav">
-        <Link className="home-brand" href="/dashboard"><span className="home-brand-mark">🍽</span><strong>กินดี</strong></Link>
-        <nav className="home-links" aria-label="เมนูหลัก">
-          <Link href="/dashboard">หน้าหลัก</Link>
-          <Link className="active" href="/ai-recommend">AI แนะนำเมนู</Link>
-        </nav>
-        <div className="home-user">
-          <Link href="/dashboard" className="outline-button" style={{ fontSize: 12 }}>← กลับ Dashboard</Link>
-        </div>
-      </header>
+      <AppNavbar actions={<Link href="/dashboard" className="market-back-link">← กลับหน้าหลัก</Link>} />
 
       <div className="ai-page-wrap">
         {/* Input Form */}

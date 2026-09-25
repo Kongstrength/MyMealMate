@@ -11,6 +11,7 @@ export async function fetchDashboard(date: string) {
   }
 
   const response = await fetch(`${API_URL}/dashboard?date=${encodeURIComponent(date)}`, {
+    cache: "no-store",
     headers: { Authorization: `Bearer ${token}` },
   });
   const data = await response.json();
@@ -25,9 +26,10 @@ export async function fetchDashboard(date: string) {
   return data;
 }
 
-export async function fetchMocSeafoodPrices(date: string) {
+export async function fetchMocPrices(date: string, categoryId: number) {
   const response = await fetch(
-    `${API_URL}/market-prices/moc?date=${encodeURIComponent(date)}&categoryId=2&type=R`,
+    `${API_URL}/market-prices/moc?date=${encodeURIComponent(date)}&categoryId=${categoryId}&type=R&length=25`,
+    { cache: "no-store" },
   );
   const data = await response.json();
 
@@ -44,6 +46,7 @@ async function authorizedJson<T>(url: string, init?: RequestInit): Promise<T> {
 
   const response = await fetch(url, {
     ...init,
+    cache: init?.cache ?? "no-store",
     headers: {
       Authorization: `Bearer ${token}`,
       ...(init?.body ? { "Content-Type": "application/json" } : {}),

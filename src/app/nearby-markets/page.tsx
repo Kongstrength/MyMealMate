@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { AppNavbar } from "../../components/app-navbar";
 import { getStoredAccessToken } from "../../lib/api";
 
 type Coordinates = {
@@ -118,15 +119,7 @@ export default function NearbyMarketsPage() {
 
   return (
     <main className="market-map-page">
-      <header className="home-nav">
-        <Link className="home-brand" href="/dashboard"><span className="home-brand-mark">🍽</span><strong>กินดี</strong></Link>
-        <nav className="home-links" aria-label="เมนูหลัก">
-          <Link href="/dashboard">หน้าหลัก</Link>
-          <Link href="/ai-recommend">AI แนะนำเมนู</Link>
-          <Link className="active" href="/nearby-markets">ตลาดใกล้ฉัน</Link>
-        </nav>
-        <Link className="market-back-link" href="/dashboard">← กลับหน้าหลัก</Link>
-      </header>
+      <AppNavbar actions={<Link className="market-back-link" href="/dashboard">← กลับหน้าหลัก</Link>} />
 
       <div className="market-map-wrap">
         <section className="market-map-heading">

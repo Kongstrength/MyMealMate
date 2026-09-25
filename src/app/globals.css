@@ -422,7 +422,8 @@ select {
 .home-links {
   display: flex;
   flex: 1;
-  gap: 28px;
+  gap: clamp(12px, 1.7vw, 28px);
+  min-width: 0;
 }
 
 .home-links a {
@@ -456,6 +457,12 @@ select {
   align-items: center;
   display: flex;
   gap: 10px;
+}
+
+.app-nav-actions {
+  align-items: center;
+  display: flex;
+  flex-shrink: 0;
 }
 
 .home-user-profile {
@@ -1145,6 +1152,7 @@ select {
 .market-strip {
   align-items: center;
   display: flex;
+  gap: 18px;
   justify-content: space-between;
   margin-top: 18px;
   padding: 17px 20px;
@@ -1173,6 +1181,16 @@ select {
   font-size: 11px;
   margin: 4px 0 0;
 }
+
+.market-category-select { display: flex; flex-direction: column; flex-shrink: 0; gap: 4px; }
+.market-category-select>span { color: #82958b; font-size: 8px; font-weight: 800; }
+.market-category-select select { background: #f8fbf9; border: 1px solid #dbe8e0; border-radius: 8px; color: #365b49; cursor: pointer; font-size: 10px; min-width: 155px; outline: none; padding: 8px 9px; }
+.market-category-select select:focus { border-color: #20ad68; box-shadow: 0 0 0 3px rgba(32, 173, 104, .1); }
+.market-price-list { display: grid; flex: 1; gap: 8px; grid-template-columns: repeat(3, minmax(120px, 1fr)); }
+.market-price-item { background: #f4faf6; border: 1px solid #e0ede5; border-radius: 8px; min-width: 0; padding: 9px 10px; }
+.market-price-item strong, .market-price-item span { display: block; }
+.market-price-item strong { font-size: 9px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.market-price-item span { color: #159159; font-size: 9px; font-weight: 900; margin-top: 4px; }
 
 .home-footer {
   color: #9aa9a1;
@@ -1731,6 +1749,9 @@ select {
   .market-strip .outline-button {
     width: 100%;
   }
+
+  .market-category-select, .market-category-select select, .market-price-list { width: 100%; }
+  .market-price-list { grid-template-columns: 1fr; }
 
   .home-footer {
     gap: 15px;

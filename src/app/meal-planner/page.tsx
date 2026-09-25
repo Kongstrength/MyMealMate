@@ -3,18 +3,19 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppNavbar } from "../../components/app-navbar";
 import { deleteMealPlan, fetchMealPlansByRange, fetchRecipes, saveMealPlan } from "../../lib/api";
-import { addDays, getMonday, MEAL_LABELS, type MealPlan, type MealPlanRange, type MealRecipe, toDateKey } from "../../lib/meal-plan-types";
+import { addDays, fromDateKey, getBangkokDateKey, getMonday, MEAL_LABELS, type MealPlan, type MealPlanRange, type MealRecipe, toDateKey } from "../../lib/meal-plan-types";
 
 const dayNames = ["จันทร์", "อังคาร", "พุธ", "พฤหัสบดี", "ศุกร์", "เสาร์", "อาทิตย์"];
 const dayIcons = ["🌙", "🧡", "🔥", "🌿", "💗", "🍲", "☀️"];
 
 export default function MealPlannerPage() {
   const router = useRouter();
-  const [weekStart, setWeekStart] = useState(() => getMonday(new Date()));
+  const [weekStart, setWeekStart] = useState(() => getMonday(fromDateKey(getBangkokDateKey())));
   const [plans, setPlans] = useState<MealPlan[]>([]);
   const [recipes, setRecipes] = useState<MealRecipe[]>([]);
-  const [selectedDate, setSelectedDate] = useState(() => toDateKey(new Date()));
+  const [selectedDate, setSelectedDate] = useState(() => getBangkokDateKey());
   const [pickerDate, setPickerDate] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
@@ -76,6 +77,7 @@ export default function MealPlannerPage() {
     setError("");
     try {
       await saveMealPlan(date, items);
+      router.refresh();
       setPickerDate(null);
       setSelectedDate(date);
       setRefreshKey((value) => value + 1);
@@ -95,6 +97,7 @@ export default function MealPlannerPage() {
       } else {
         await saveMealPlan(plan.date, remaining.map((item) => ({ recipe_id: item.recipe.id, meal_type: item.mealType, servings: item.servings })));
       }
+      router.refresh();
       setRefreshKey((value) => value + 1);
     } catch (removeError) {
       setError(removeError instanceof Error ? removeError.message : "ลบมื้ออาหารไม่สำเร็จ");
@@ -117,6 +120,7 @@ export default function MealPlannerPage() {
         const recipe = group.recipes[dayIndex % group.recipes.length];
         return { recipe_id: recipe.id, meal_type: group.mealType, servings: 1 };
       }))));
+      router.refresh();
       setRefreshKey((value) => value + 1);
     } catch (generateError) {
       setError(generateError instanceof Error ? generateError.message : "สร้างแผนรายสัปดาห์ไม่สำเร็จ");
@@ -130,6 +134,7 @@ export default function MealPlannerPage() {
     setIsSaving(true);
     try {
       await Promise.all(plans.map((plan) => deleteMealPlan(plan.id)));
+      router.refresh();
       setRefreshKey((value) => value + 1);
     } catch (clearError) {
       setError(clearError instanceof Error ? clearError.message : "ล้างแผนอาหารไม่สำเร็จ");
@@ -142,11 +147,7 @@ export default function MealPlannerPage() {
 
   return (
     <main className="planner-page">
-      <header className="home-nav">
-        <Link className="home-brand" href="/dashboard"><span className="home-brand-mark">🍽</span><strong>กินดี</strong></Link>
-        <nav className="home-links" aria-label="เมนูหลัก"><Link href="/dashboard">หน้าหลัก</Link><Link href="/ai-recommend">AI แนะนำเมนู</Link><Link className="active" href="/meal-planner">วางแผนมื้ออาหาร</Link><Link href="/reports">รายงาน</Link><Link href="/nearby-markets">ตลาดใกล้ฉัน</Link></nav>
-        <Link className="market-back-link" href="/dashboard">← กลับหน้าหลัก</Link>
-      </header>
+      <AppNavbar actions={<Link className="market-back-link" href="/dashboard">← กลับหน้าหลัก</Link>} />
 
       <div className="planner-wrap">
         <section className="planner-hero">
@@ -157,7 +158,7 @@ export default function MealPlannerPage() {
         {error && <p className="planner-error" role="alert">{error}</p>}
 
         <section className="planner-calendar-card">
-          <div className="planner-week-nav"><button onClick={() => shiftWeek(-1)} type="button">‹</button><div><strong>{rangeLabel}</strong><small>แตะวันที่เพื่อเลือกวันสำหรับเพิ่มเมนู</small></div><button onClick={() => shiftWeek(1)} type="button">›</button><button className="planner-today" onClick={() => { const monday = getMonday(new Date()); setWeekStart(monday); setSelectedDate(toDateKey(new Date())); }} type="button">วันนี้</button></div>
+          <div className="planner-week-nav"><button onClick={() => shiftWeek(-1)} type="button">‹</button><div><strong>{rangeLabel}</strong><small>แตะวันที่เพื่อเลือกวันสำหรับเพิ่มเมนู</small></div><button onClick={() => shiftWeek(1)} type="button">›</button><button className="planner-today" onClick={() => { const today = getBangkokDateKey(); setWeekStart(getMonday(fromDateKey(today))); setSelectedDate(today); }} type="button">วันนี้</button></div>
 
           {isLoading ? <div className="planner-loading">กำลังโหลดแผนอาหาร...</div> : (
             <div className="planner-week-grid">

@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
-import { fetchDashboard, fetchMocSeafoodPrices, getStoredAccessToken } from "../../lib/api";
+import { AppNavbar } from "../../components/app-navbar";
+import { fetchDashboard, fetchMocPrices, getStoredAccessToken } from "../../lib/api";
 import { ProfileEditor, type ProfileTab } from "../profile/profile-editor";
+import { getBangkokDateKey } from "../../lib/meal-plan-types";
 
 type DashboardData = {
   date: string;
@@ -31,6 +33,7 @@ type DashboardData = {
 };
 
 type MarketPriceData = {
+  date: string;
   items: Array<{
     id: string;
     name: string;
@@ -38,6 +41,15 @@ type MarketPriceData = {
     unit: string;
   }>;
 };
+
+const MARKET_CATEGORIES = [
+  { id: 1, label: "เนื้อสัตว์และไข่", icon: "🥩", picks: ["เนื้ออก (เนื้อล้วน)", "น่อง สะโพก", "ไข่ไก่ เบอร์ 2"] },
+  { id: 2, label: "สัตว์น้ำ", icon: "🐟", picks: ["กุ้งขาว (50", "ปลานิล", "ปลากระพงขาว"] },
+  { id: 3, label: "ผักสด", icon: "🥬", picks: ["ผักคะน้า คละ", "แตงกวา คละ", "กะหล่ำปลี คละ"] },
+  { id: 4, label: "ผลไม้", icon: "🍊", picks: ["กล้วยน้ำว้า", "มะละกอฮอลแลนด์", "ฝรั่งกิมจู คละ"] },
+  { id: 5, label: "เครื่องปรุงและของแห้ง", icon: "🧄", picks: ["กระเทียมแห้ง แกะกลีบ", "มันฝรั่ง เกรดเอ", "หอมหัวใหญ่"] },
+  { id: 6, label: "น้ำมันและธัญพืช", icon: "🌾", picks: ["น้ำมันถั่วเหลืองบริสุทธิ์", "น้ำมันปาล์มสำเร็จรูป บรรจุขวด", "ถั่วลิสงกะเทาะเปลือก คัดพิเศษ"] },
+] as const;
 
 const MEAL_TYPE_LABEL: Record<string, string> = {
   BREAKFAST: "มื้อเช้า",
@@ -59,16 +71,12 @@ export default function DashboardPage() {
   const [error, setError] = useState("");
   const [marketPrices, setMarketPrices] = useState<MarketPriceData | null>(null);
   const [marketError, setMarketError] = useState("");
+  const [marketCategoryId, setMarketCategoryId] = useState(3);
   const [profileModalTab, setProfileModalTab] = useState<ProfileTab | null>(null);
   const [dashboardRefresh, setDashboardRefresh] = useState(0);
   const [isAuthorizing, setIsAuthorizing] = useState(true);
 
-  const today = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Bangkok",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).format(new Date());
+  const today = getBangkokDateKey();
 
   useEffect(() => {
     if (!getStoredAccessToken()) {
@@ -89,12 +97,15 @@ export default function DashboardPage() {
         setIsAuthorizing(false);
       });
 
-    fetchMocSeafoodPrices(today)
+  }, [router, today, dashboardRefresh]);
+
+  useEffect(() => {
+    fetchMocPrices(today, marketCategoryId)
       .then(setMarketPrices)
       .catch((loadError: unknown) => {
         setMarketError(loadError instanceof Error ? loadError.message : "โหลดราคาสินค้าไม่สำเร็จ");
       });
-  }, [router, today, dashboardRefresh]);
+  }, [marketCategoryId, today]);
 
   useEffect(() => {
     if (!profileModalTab) return;
@@ -128,30 +139,27 @@ export default function DashboardPage() {
   const budgetLeft = Math.max(0, budgetDaily - totalCost);
   const likedFoods: string[] = dashboard?.user.liked_foods ?? [];
   const healthGoals: string[] = dashboard?.user.health_goals_list ?? [];
+  const marketCategory = MARKET_CATEGORIES.find((category) => category.id === marketCategoryId) ?? MARKET_CATEGORIES[2];
+  const featuredMarketItems = marketCategory.picks
+    .map((keyword) => marketPrices?.items.find((item) => item.name.includes(keyword)))
+    .filter((item): item is MarketPriceData["items"][number] => Boolean(item));
+  for (const item of marketPrices?.items ?? []) {
+    if (featuredMarketItems.length >= 3) break;
+    if (!featuredMarketItems.some((featured) => featured.id === item.id)) featuredMarketItems.push(item);
+  }
 
   if (isAuthorizing) return <main className="home-page"><div className="profile-loading">กำลังตรวจสอบการเข้าสู่ระบบ...</div></main>;
 
   return (
     <main className="home-page">
-      <header className="home-nav">
-        <Link className="home-brand" href="/dashboard"><span className="home-brand-mark">🍽</span><strong>กินดี</strong></Link>
-        <nav className="home-links" aria-label="เมนูหลัก">
-          <Link className="active" href="/dashboard">หน้าหลัก</Link>
-          <Link href="/ai-recommend">AI แนะนำเมนู</Link>
-          <Link href="/meal-planner">วางแผนมื้ออาหาร</Link>
-          <a href="#menu-search">ค้นหาเมนู</a>
-          <Link href="/reports">รายงาน</Link>
-          <Link href="/nearby-markets">ตลาดใกล้ฉัน</Link>
-        </nav>
-        <div className="home-user">
+      <AppNavbar actions={<div className="home-user">
           <button className="home-user-profile" type="button" onClick={() => setProfileModalTab("personal")} aria-label="แก้ไขโปรไฟล์">
             <div className="home-avatar">{dashboard?.user.full_name?.charAt(0) ?? "ผ"}</div>
             <div className="home-user-copy"><strong>{dashboard?.user.full_name ?? "กำลังโหลด..."}</strong><span>@{dashboard?.user.username ?? ""}</span></div>
             <span className="home-edit-icon" aria-hidden="true">✎</span>
           </button>
           <button className="icon-button" type="button" aria-label="ออกจากระบบ" onClick={logout}>↗</button>
-        </div>
-      </header>
+        </div>} />
 
       <div className="home-wrap">
         {/* Sidebar */}
@@ -361,20 +369,30 @@ export default function DashboardPage() {
           {/* Market Prices */}
           <section className="market-strip" id="market">
             <div className="market-copy">
-              <span className="market-pin">฿</span>
+              <span className="market-pin">{marketCategory.icon}</span>
               <div>
-                <h2>ราคาสัตว์น้ำวันนี้</h2>
-                <p>ข้อมูลค้าปลีกจากกรมการค้าภายใน กระทรวงพาณิชย์</p>
+                <h2>ราคาวัตถุดิบวันนี้</h2>
+                <p>{marketCategory.label} · ข้อมูลค้าปลีกจากกรมการค้าภายใน</p>
               </div>
             </div>
+            <label className="market-category-select">
+              <span>เลือกหมวด</span>
+              <select value={marketCategoryId} onChange={(event) => {
+                setMarketPrices(null);
+                setMarketError("");
+                setMarketCategoryId(Number(event.target.value));
+              }}>
+                {MARKET_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.icon} {category.label}</option>)}
+              </select>
+            </label>
             {marketError && <p className="error-note" role="alert">{marketError}</p>}
             {!marketPrices && !marketError && <p className="muted">กำลังโหลดราคา...</p>}
             {marketPrices && (
               <div className="market-price-list">
-                {marketPrices.items.slice(0, 3).map((item) => (
+                {featuredMarketItems.map((item) => (
                   <div className="market-price-item" key={item.id}>
                     <strong>{item.name}</strong>
-                    <span>฿{item.average_price.toLocaleString()} {item.unit}</span>
+                    <span>฿{item.average_price.toLocaleString()}{item.unit.replace(/^บาท\s*\//, "/")}</span>
                   </div>
                 ))}
               </div>

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { AppNavbar } from "../../components/app-navbar";
 import { fetchDashboard, fetchMealPlansByRange } from "../../lib/api";
-import { addDays, type MealPlanRange, toDateKey } from "../../lib/meal-plan-types";
+import { addDays, getBangkokDateKey, type MealPlanRange, toDateKey } from "../../lib/meal-plan-types";
 
 type DashboardProfile = {
   user: {
@@ -18,7 +19,7 @@ const thaiMonths = ["มกราคม", "กุมภาพันธ์", "ม
 
 export default function ReportsPage() {
   const router = useRouter();
-  const [selectedMonth, setSelectedMonth] = useState(() => toDateKey(new Date()).slice(0, 7));
+  const [selectedMonth, setSelectedMonth] = useState(() => getBangkokDateKey().slice(0, 7));
   const [range, setRange] = useState<MealPlanRange>({ from: "", to: "", plans: [] });
   const [profile, setProfile] = useState<DashboardProfile["user"] | null>(null);
   const [isLoading, setIsLoading] = useState(true);
@@ -133,11 +134,7 @@ export default function ReportsPage() {
 
   return (
     <main className="reports-page">
-      <header className="home-nav">
-        <Link className="home-brand" href="/dashboard"><span className="home-brand-mark">🍽</span><strong>กินดี</strong></Link>
-        <nav className="home-links" aria-label="เมนูหลัก"><Link href="/dashboard">หน้าหลัก</Link><Link href="/ai-recommend">AI แนะนำเมนู</Link><Link href="/meal-planner">วางแผนมื้ออาหาร</Link><Link className="active" href="/reports">รายงาน</Link><Link href="/nearby-markets">ตลาดใกล้ฉัน</Link></nav>
-        <Link className="market-back-link" href="/dashboard">← กลับหน้าหลัก</Link>
-      </header>
+      <AppNavbar actions={<Link className="market-back-link" href="/dashboard">← กลับหน้าหลัก</Link>} />
 
       <div className="reports-wrap">
         <section className="reports-heading"><div><h1>รายงานและสถิติ</h1><p>ติดตามการรับประทาน งบประมาณ และความคืบหน้าเป้าหมายของคุณ</p></div><div><input aria-label="เลือกเดือน" onChange={(event) => setSelectedMonth(event.target.value)} type="month" value={selectedMonth} /><button disabled={range.plans.length === 0} onClick={exportCsv} type="button">ส่งออกรายงาน</button></div></section>
