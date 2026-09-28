@@ -17,6 +17,7 @@ type Meal = {
   menu_name: string;
   description: string;
   ingredients: Ingredient[];
+  steps: string[];
   estimated_cost: number;
   calories: number;
   protein_g: number;
@@ -98,6 +99,10 @@ export default function AiRecommendPage() {
         result.meals.map((meal) => ({
           meal_type: meal.meal_type,
           menu_name: meal.menu_name,
+          description: meal.description,
+          ingredients: meal.ingredients,
+          steps: meal.steps,
+          cooking_tips: meal.cooking_tips,
           estimated_cost: meal.estimated_cost,
           calories: meal.calories,
           protein_g: meal.protein_g,
@@ -241,6 +246,10 @@ export default function AiRecommendPage() {
                           <span className="ai-ing-price">฿{ing.estimated_price}</span>
                         </div>
                       ))}
+                    </div>
+                    <div className="ai-recipe-steps">
+                      <strong>วิธีทำ</strong>
+                      <ol>{meal.steps.map((step, stepIndex) => <li key={stepIndex}>{step}</li>)}</ol>
                     </div>
                     {meal.cooking_tips && (
                       <div className="ai-tips"><span>💡</span><p>{meal.cooking_tips}</p></div>

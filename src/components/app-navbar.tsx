@@ -8,7 +8,7 @@ const navigationItems = [
   { href: "/dashboard", label: "หน้าหลัก" },
   { href: "/ai-recommend", label: "AI แนะนำเมนู" },
   { href: "/meal-planner", label: "วางแผนมื้ออาหาร" },
-  { href: "/dashboard#menu-search", label: "ค้นหาเมนู" },
+  { href: "/menu-search", label: "ค้นหาเมนู" },
   { href: "/reports", label: "รายงาน" },
   { href: "/nearby-markets", label: "ตลาดใกล้ฉัน" },
 ];

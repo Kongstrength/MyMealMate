@@ -60,7 +60,7 @@ const MEAL_TYPE_LABEL: Record<string, string> = {
 
 const quickActions = [
   { icon: "✨", label: "AI แนะนำเมนู", detail: "ให้ AI จัดเมนูในงบ", href: "/ai-recommend" },
-  { icon: "⌕", label: "ค้นหาเมนู", detail: "จากวัตถุดิบที่มี", href: "#menu-search" },
+  { icon: "⌕", label: "ค้นหาเมนู", detail: "จากชื่ออาหารและงบ", href: "/menu-search" },
   { icon: "▣", label: "วางแผนรายสัปดาห์", detail: "จัดมื้ออาหารล่วงหน้า", href: "/meal-planner" },
 ];
 

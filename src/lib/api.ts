@@ -123,6 +123,14 @@ export async function saveAiMealPlan(
   meals: Array<{
     meal_type: string;
     menu_name: string;
+    description?: string;
+    ingredients: Array<{
+      name: string;
+      amount: string;
+      estimated_price: number;
+    }>;
+    steps: string[];
+    cooking_tips?: string;
     estimated_cost: number;
     calories: number;
     protein_g?: number;

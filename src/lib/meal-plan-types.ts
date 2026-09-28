@@ -9,6 +9,14 @@ export type MealRecipe = {
   fat: number;
   estimatedCost: number;
   emoji: string | null;
+  source?: "CURATED" | "AI";
+  cookingTips?: string | null;
+  ingredients?: Array<{
+    name: string;
+    amount: string | null;
+    estimatedPrice: number | null;
+  }>;
+  steps?: string[];
 };
 
 export type MealPlanItem = {
